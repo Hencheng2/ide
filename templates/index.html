@@ -1,0 +1,2181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark IDE Pro - AI-Powered Code Editor</title>
+    <!-- CodeMirror for syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/dracula.min.css">
+    <!-- Language modes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/search.min.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Marked for markdown rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+    <!-- Highlight.js for code highlighting in AI responses -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 280px;
+            background-color: #252526;
+            border-right: 1px solid #3e3e42;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            background-color: #2d2d30;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-header h3 {
+            color: #cccccc;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .sidebar-header i {
+            color: #cccccc;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .sidebar-header i:hover {
+            background-color: #3a3a3a;
+        }
+
+        .file-explorer {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .folder {
+            margin-bottom: 4px;
+        }
+
+        .folder-header {
+            padding: 6px 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            color: #cccccc;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            position: relative;
+            user-select: none;
+        }
+
+        .folder-header:hover {
+            background-color: #2a2d2e;
+        }
+
+        .folder-header i {
+            margin-right: 6px;
+            font-size: 14px;
+            width: 16px;
+        }
+
+        .folder-name {
+            flex: 1;
+            font-size: 13px;
+        }
+
+        .folder-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .folder-header:hover .folder-actions {
+            opacity: 1;
+        }
+
+        .folder-action-btn {
+            background: none;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            padding: 2px 4px;
+            font-size: 12px;
+            border-radius: 3px;
+        }
+
+        .folder-action-btn:hover {
+            background-color: #4a4a4a;
+        }
+
+        .folder-content {
+            margin-left: 20px;
+            display: none;
+        }
+
+        .folder.expanded .folder-content {
+            display: block;
+        }
+
+        .file-item {
+            padding: 4px 8px 4px 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            color: #cccccc;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            font-size: 13px;
+            position: relative;
+        }
+
+        .file-item:hover {
+            background-color: #2a2d2e;
+        }
+
+        .file-item.active {
+            background-color: #37373d;
+        }
+
+        .file-item i {
+            margin-right: 8px;
+            font-size: 14px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .file-name {
+            flex: 1;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .file-item:hover .file-actions {
+            opacity: 1;
+        }
+
+        .file-action-btn {
+            background: none;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            padding: 2px 4px;
+            font-size: 12px;
+            border-radius: 3px;
+        }
+
+        .file-action-btn:hover {
+            background-color: #4a4a4a;
+        }
+
+        .empty-state {
+            padding: 20px;
+            text-align: center;
+            color: #6a6a6a;
+            font-style: italic;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            padding: 12px;
+            border-bottom: 1px solid #3e3e42;
+        }
+
+        .action-group {
+            margin-bottom: 8px;
+        }
+
+        .action-group label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #6a6a6a;
+            margin-bottom: 4px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 6px 10px;
+            background-color: #2d2d30;
+            border: none;
+            color: #cccccc;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background-color: #3a3a3a;
+        }
+
+        .action-btn i {
+            font-size: 12px;
+        }
+
+        .action-btn.primary {
+            background-color: #0e639c;
+            color: white;
+        }
+
+        .action-btn.primary:hover {
+            background-color: #1177bb;
+        }
+
+        /* Main Content Area */
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Editor Container */
+        .editor-container {
+            flex: 1;
+            position: relative;
+            background-color: #1e1e1e;
+            overflow: hidden;
+        }
+
+        .editor-header {
+            padding: 12px 20px;
+            background-color: #2d2d30;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .current-file-name {
+            font-size: 14px;
+            color: #cccccc;
+            font-weight: 500;
+        }
+
+        .language-badge {
+            padding: 4px 8px;
+            background-color: #3a3a3a;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #9cdcfe;
+            text-transform: uppercase;
+        }
+
+        .editor-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .CodeMirror {
+            height: 100%;
+            width: 100%;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* Problems Panel */
+        .problems-panel {
+            background-color: #252526;
+            border-top: 1px solid #3e3e42;
+            max-height: 200px;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            transition: max-height 0.3s ease;
+        }
+
+        .problems-panel.collapsed {
+            max-height: 36px;
+            min-height: 36px;
+        }
+
+        .problems-header {
+            padding: 8px 16px;
+            background-color: #2d2d30;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #cccccc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .problems-header:hover {
+            background-color: #323236;
+        }
+
+        .problems-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .problems-header-left i {
+            font-size: 14px;
+            transition: transform 0.3s;
+        }
+
+        .problems-panel.collapsed .problems-header-left i {
+            transform: rotate(-90deg);
+        }
+
+        .problems-count {
+            font-size: 11px;
+            color: #6a6a6a;
+        }
+
+        .problems-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+
+        .problems-panel.collapsed .problems-content {
+            display: none;
+        }
+
+        .problem-item {
+            padding: 4px 16px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .problem-item:hover {
+            background-color: #2a2d2e;
+        }
+
+        .problem-item.error {
+            color: #f48771;
+        }
+
+        .problem-item.warning {
+            color: #cca700;
+        }
+
+        .problem-icon {
+            font-size: 12px;
+            width: 16px;
+        }
+
+        .problem-message {
+            flex: 1;
+        }
+
+        .problem-location {
+            color: #6a6a6a;
+            font-size: 11px;
+        }
+
+        .no-problems {
+            padding: 16px;
+            color: #6a6a6a;
+            text-align: center;
+            font-style: italic;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            padding: 4px 16px;
+            background-color: #007acc;
+            color: white;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .status-left {
+            display: flex;
+            gap: 16px;
+        }
+
+        .status-right {
+            display: flex;
+            gap: 16px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* AI Panel */
+        .ai-panel {
+            width: 350px;
+            background-color: #252526;
+            border-left: 1px solid #3e3e42;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+            position: relative;
+            resize: horizontal;
+            min-width: 250px;
+            max-width: 600px;
+            transition: width 0.1s ease;
+        }
+
+        .ai-panel.resizing {
+            transition: none;
+            user-select: none;
+        }
+
+        .ai-resize-handle {
+            position: absolute;
+            left: -5px;
+            top: 0;
+            width: 10px;
+            height: 100%;
+            cursor: ew-resize;
+            background-color: transparent;
+            z-index: 100;
+        }
+
+        .ai-resize-handle:hover {
+            background-color: #007acc;
+            opacity: 0.3;
+        }
+
+        .ai-header {
+            padding: 12px 16px;
+            background-color: #2d2d30;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ai-header h3 {
+            color: #cccccc;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ai-header h3 i {
+            color: #9cdcfe;
+        }
+
+        .ai-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .ai-actions button {
+            background: none;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .ai-actions button:hover {
+            background-color: #3a3a3a;
+        }
+
+        .ai-context-switch {
+            padding: 8px 16px;
+            background-color: #2d2d30;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .ai-context-switch label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        .ai-context-switch input[type="checkbox"] {
+            cursor: pointer;
+        }
+
+        .ai-chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .ai-message {
+            display: flex;
+            gap: 12px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .ai-message.user {
+            flex-direction: row-reverse;
+        }
+
+        .ai-message.user .message-content {
+            background-color: #0e639c;
+        }
+
+        .ai-message.assistant .message-avatar {
+            background-color: #3a3a3a;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            background-color: #4a4a4a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            flex: 1;
+            background-color: #2d2d30;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.5;
+            overflow-x: auto;
+        }
+
+        .message-content pre {
+            background-color: #1e1e1e;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 8px 0;
+            overflow-x: auto;
+        }
+
+        .message-content code {
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+        }
+
+        .message-content p {
+            margin: 4px 0;
+        }
+
+        .message-content p:first-child {
+            margin-top: 0;
+        }
+
+        .message-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .ai-input-area {
+            padding: 16px;
+            border-top: 1px solid #3e3e42;
+            background-color: #2d2d30;
+        }
+
+        .ai-input-container {
+            display: flex;
+            gap: 8px;
+            background-color: #3a3a3a;
+            border-radius: 6px;
+            padding: 4px;
+        }
+
+        .ai-input {
+            flex: 1;
+            background: none;
+            border: none;
+            color: #d4d4d4;
+            padding: 8px 12px;
+            font-size: 13px;
+            outline: none;
+            resize: none;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        .ai-input::placeholder {
+            color: #6a6a6a;
+        }
+
+        .ai-send-btn {
+            background-color: #0e639c;
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: background-color 0.2s;
+            flex-shrink: 0;
+            align-self: flex-end;
+        }
+
+        .ai-send-btn:hover {
+            background-color: #1177bb;
+        }
+
+        .ai-send-btn:disabled {
+            background-color: #4a4a4a;
+            cursor: not-allowed;
+        }
+
+        .ai-quick-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .ai-quick-btn {
+            padding: 4px 8px;
+            background-color: #3a3a3a;
+            border: none;
+            color: #cccccc;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .ai-quick-btn:hover {
+            background-color: #4a4a4a;
+        }
+
+        .ai-quick-btn i {
+            font-size: 10px;
+        }
+
+        .ai-typing {
+            display: flex;
+            gap: 4px;
+            padding: 8px 12px;
+            background-color: #2d2d30;
+            border-radius: 6px;
+            width: fit-content;
+        }
+
+        .ai-typing span {
+            width: 6px;
+            height: 6px;
+            background-color: #cccccc;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .ai-typing span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .ai-typing span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.5;
+            }
+            30% {
+                transform: translateY(-4px);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: #2d2d30;
+            border-radius: 6px;
+            width: 400px;
+            max-width: 90%;
+            padding: 24px;
+            border: 1px solid #3e3e42;
+        }
+
+        .modal-title {
+            font-size: 16px;
+            color: #cccccc;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .modal-input-group {
+            margin-bottom: 16px;
+        }
+
+        .modal-input-group label {
+            display: block;
+            font-size: 12px;
+            color: #6a6a6a;
+            margin-bottom: 4px;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 10px;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            color: #d4d4d4;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: #0e639c;
+        }
+
+        .modal-select {
+            width: 100%;
+            padding: 10px;
+            background-color: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            color: #d4d4d4;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 24px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background-color: #0e639c;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #1177bb;
+        }
+
+        .btn-secondary {
+            background-color: #3a3a3a;
+            color: #cccccc;
+        }
+
+        .btn-secondary:hover {
+            background-color: #4a4a4a;
+        }
+
+        .btn-danger {
+            background-color: #a1260d;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #c42b1c;
+        }
+
+        /* Toast Notifications */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #2d2d30;
+            border-left: 4px solid #007acc;
+            padding: 12px 20px;
+            border-radius: 4px;
+            color: #d4d4d4;
+            font-size: 13px;
+            z-index: 3000;
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        /* Context Menu */
+        .context-menu {
+            display: none;
+            position: fixed;
+            background-color: #2d2d30;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 4px 0;
+            z-index: 1000;
+            min-width: 150px;
+        }
+
+        .context-menu.active {
+            display: block;
+        }
+
+        .context-menu-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #cccccc;
+        }
+
+        .context-menu-item:hover {
+            background-color: #3a3a3a;
+        }
+
+        .context-menu-item i {
+            width: 16px;
+            font-size: 12px;
+        }
+
+        .context-menu-item.delete {
+            color: #f48771;
+        }
+
+        /* Scrollbar Styles */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #2d2d30;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #4a4a4a;
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #5a5a5a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h3><i class="fas fa-folder-tree"></i> EXPLORER</h3>
+                <i class="fas fa-ellipsis-v" onclick="showContextMenu(event)"></i>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <div class="action-group">
+                    <label>CREATE</label>
+                    <div class="action-buttons">
+                        <button class="action-btn" onclick="showNewFileModal()">
+                            <i class="fas fa-file"></i> File
+                        </button>
+                        <button class="action-btn" onclick="showNewFolderModal()">
+                            <i class="fas fa-folder"></i> Folder
+                        </button>
+                    </div>
+                </div>
+                <div class="action-group">
+                    <label>OPEN</label>
+                    <div class="action-buttons">
+                        <button class="action-btn" onclick="showOpenFileModal()">
+                            <i class="fas fa-folder-open"></i> Open File
+                        </button>
+                        <button class="action-btn" onclick="showOpenFolderModal()">
+                            <i class="fas fa-folder-tree"></i> Open Folder
+                        </button>
+                    </div>
+                </div>
+                <div class="action-group">
+                    <label>ACTIONS</label>
+                    <div class="action-buttons">
+                        <button class="action-btn" onclick="downloadAll()">
+                            <i class="fas fa-download"></i> Download All
+                        </button>
+                        <button class="action-btn" onclick="showSettings()">
+                            <i class="fas fa-cog"></i> Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="file-explorer" id="fileExplorer">
+                <div class="empty-state">
+                    <i class="fas fa-folder-open" style="font-size: 32px; margin-bottom: 12px;"></i>
+                    <p>No folders yet</p>
+                    <p style="font-size: 12px; color: #6a6a6a; margin-top: 8px;">Create a folder to get started</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Area (Editor + AI Panel) -->
+        <div class="main-area">
+            <!-- Editor Header -->
+            <div class="editor-header">
+                <div class="file-info">
+                    <span class="current-file-name" id="currentFileName">
+                        <i class="fas fa-file"></i> No file selected
+                    </span>
+                    <span class="language-badge" id="currentLanguage">-</span>
+                </div>
+                <div class="editor-actions">
+                    <button class="btn btn-secondary" onclick="formatCode()" id="formatBtn" style="display: none;">
+                        <i class="fas fa-magic"></i> Format
+                    </button>
+                    <button class="btn btn-secondary" onclick="downloadCurrentFile()" id="downloadBtn" style="display: none;">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button class="btn-danger" onclick="deleteCurrentFile()" id="deleteBtn" style="display: none;">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+
+            <!-- Editor Container -->
+            <div class="editor-container">
+                <textarea id="codeEditor"></textarea>
+            </div>
+
+            <!-- Problems Panel -->
+            <div class="problems-panel" id="problemsPanel">
+                <div class="problems-header" onclick="toggleProblemsPanel()">
+                    <div class="problems-header-left">
+                        <i class="fas fa-chevron-down"></i>
+                        <span>PROBLEMS</span>
+                        <span class="problems-count" id="problemCount">0 errors, 0 warnings</span>
+                    </div>
+                </div>
+                <div class="problems-content" id="problemsContent">
+                    <div class="no-problems">
+                        <i class="fas fa-check-circle" style="color: #6a9955;"></i> No problems detected
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <div class="status-left">
+                    <span class="status-item" id="statusMessage">
+                        <i class="fas fa-check-circle"></i> Ready
+                    </span>
+                    <span class="status-item" id="cursorPosition">
+                        <i class="fas fa-cursor"></i> Ln 1, Col 1
+                    </span>
+                </div>
+                <div class="status-right">
+                    <span class="status-item">
+                        <i class="fas fa-code"></i> UTF-8
+                    </span>
+                    <span class="status-item">
+                        <i class="fas fa-robot"></i> DeepSeek AI
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Panel -->
+        <div class="ai-panel" id="aiPanel">
+            <div class="ai-resize-handle" id="aiResizeHandle"></div>
+            <div class="ai-header">
+                <h3><i class="fas fa-robot"></i> CODE WITH AI</h3>
+                <div class="ai-actions">
+                    <button onclick="clearAIConversation()" title="Clear conversation">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button onclick="toggleAIPanel()" title="Toggle panel">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="ai-context-switch">
+                <label>
+                    <input type="checkbox" id="includeContext" checked>
+                    <i class="fas fa-file-code"></i> Include current file context
+                </label>
+            </div>
+            <div class="ai-chat-container" id="aiChatContainer">
+                <!-- Messages will be inserted here -->
+                <div class="ai-message assistant">
+                    <div class="message-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="message-content">
+                        <p>Hello! I'm DeepSeek, your AI programming assistant. How can I help you today?</p>
+                        <p>You can ask me to:</p>
+                        <ul>
+                            <li>Generate code (e.g., "create a football webpage")</li>
+                            <li>Explain selected code</li>
+                            <li>Debug issues</li>
+                            <li>Review your code</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="ai-input-area">
+                <div class="ai-input-container">
+                    <textarea 
+                        class="ai-input" 
+                        id="aiInput" 
+                        placeholder="Ask DeepSeek to write code..." 
+                        rows="1"
+                        onkeydown="handleAIInputKeydown(event)"
+                    ></textarea>
+                    <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="ai-quick-actions">
+                    <button class="ai-quick-btn" onclick="quickAIAction('generate')">
+                        <i class="fas fa-code"></i> Generate
+                    </button>
+                    <button class="ai-quick-btn" onclick="quickAIAction('explain')">
+                        <i class="fas fa-question-circle"></i> Explain
+                    </button>
+                    <button class="ai-quick-btn" onclick="quickAIAction('debug')">
+                        <i class="fas fa-bug"></i> Debug
+                    </button>
+                    <button class="ai-quick-btn" onclick="quickAIAction('review')">
+                        <i class="fas fa-search"></i> Review
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals (same as before) -->
+    <div class="modal" id="newFileModal">
+        <div class="modal-content">
+            <div class="modal-title">Create New File</div>
+            <div class="modal-input-group">
+                <label>File Name</label>
+                <input type="text" class="modal-input" id="newFileName" placeholder="e.g., script.py" value="untitled.py">
+            </div>
+            <div class="modal-input-group">
+                <label>Location</label>
+                <select class="modal-select" id="newFileFolder">
+                    <option value="root">Root</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('newFileModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createNewFile()">Create File</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="newFolderModal">
+        <div class="modal-content">
+            <div class="modal-title">Create New Folder</div>
+            <div class="modal-input-group">
+                <label>Folder Name</label>
+                <input type="text" class="modal-input" id="newFolderName" placeholder="e.g., src">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('newFolderModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="createNewFolder()">Create Folder</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="openFileModal">
+        <div class="modal-content">
+            <div class="modal-title">Open File</div>
+            <div class="modal-input-group">
+                <label>File Name</label>
+                <input type="text" class="modal-input" id="openFileName" placeholder="Enter file name to create/open">
+            </div>
+            <div class="modal-input-group">
+                <label>Location</label>
+                <select class="modal-select" id="openFileFolder">
+                    <option value="root">Root</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('openFileModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="openOrCreateFile()">Open/Create</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="openFolderModal">
+        <div class="modal-content">
+            <div class="modal-title">Open/Create Folder</div>
+            <div class="modal-input-group">
+                <label>Folder Name</label>
+                <input type="text" class="modal-input" id="openFolderName" placeholder="Enter folder name">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('openFolderModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="openOrCreateFolder()">Open/Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" onclick="showNewFileModal()">
+            <i class="fas fa-file"></i> New File
+        </div>
+        <div class="context-menu-item" onclick="showNewFolderModal()">
+            <i class="fas fa-folder"></i> New Folder
+        </div>
+        <div class="context-menu-item" onclick="showOpenFileModal()">
+            <i class="fas fa-folder-open"></i> Open File
+        </div>
+        <div class="context-menu-item" onclick="showOpenFolderModal()">
+            <i class="fas fa-folder-tree"></i> Open Folder
+        </div>
+        <div class="context-menu-item" onclick="downloadAll()">
+            <i class="fas fa-download"></i> Download All
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/htmlmixed/htmlmixed.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/sql/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/php/php.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/ruby/ruby.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/go/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/rust/rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/search.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/searchcursor.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/closebrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/selection/active-line.min.js"></script>
+
+    <script>
+        // State
+        let currentFileId = null;
+        let currentFileLanguage = '';
+        let folders = {};
+        let editor = null;
+        let autoSaveTimeout = null;
+        let problemsCollapsed = false;
+        let aiPanelVisible = true;
+        let isResizing = false;
+        let startX, startWidth;
+
+        // Language icon mapping (same as before)
+        const languageIcons = {
+            'py': { icon: 'fa-python', color: '#3572A5', brand: true },
+            'python': { icon: 'fa-python', color: '#3572A5', brand: true },
+            'js': { icon: 'fa-js', color: '#f1e05a', brand: true },
+            'javascript': { icon: 'fa-js', color: '#f1e05a', brand: true },
+            'html': { icon: 'fa-html5', color: '#e34c26', brand: true },
+            'htm': { icon: 'fa-html5', color: '#e34c26', brand: true },
+            'css': { icon: 'fa-css3', color: '#563d7c', brand: true },
+            'json': { icon: 'fa-brackets-curly', color: '#f1e05a' },
+            'sql': { icon: 'fa-database', color: '#e38c00' },
+            'md': { icon: 'fa-markdown', color: '#6a6a6a', brand: true },
+            'markdown': { icon: 'fa-markdown', color: '#6a6a6a', brand: true },
+            'txt': { icon: 'fa-file-lines', color: '#6a6a6a' }
+        };
+
+        const specialFiles = {
+            'Dockerfile': { icon: 'fa-docker', color: '#2496ed', brand: true },
+            'Makefile': { icon: 'fa-hammer', color: '#6a6a6a' },
+            'README.md': { icon: 'fa-book', color: '#6a6a6a' },
+            '.gitignore': { icon: 'fa-git', color: '#f05032', brand: true }
+        };
+
+        function getFileIcon(filename) {
+            if (specialFiles[filename]) {
+                return specialFiles[filename];
+            }
+            const parts = filename.split('.');
+            if (parts.length === 1) return { icon: 'fa-file', color: '#6a6a6a' };
+            const ext = parts.pop().toLowerCase();
+            return languageIcons[ext] || { icon: 'fa-file-code', color: '#9cdcfe' };
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeEditor();
+            loadFiles();
+            initializeAIResize();
+        });
+
+        function initializeEditor() {
+            editor = CodeMirror.fromTextArea(document.getElementById('codeEditor'), {
+                theme: 'dracula',
+                lineNumbers: true,
+                lineWrapping: true,
+                autoCloseBrackets: true,
+                matchBrackets: true,
+                styleActiveLine: true,
+                indentUnit: 4,
+                tabSize: 4,
+                indentWithTabs: false,
+                extraKeys: {
+                    'Ctrl-S': () => autoSave(),
+                    'Ctrl-Shift-F': () => formatCode(),
+                    'Ctrl-N': () => showNewFileModal(),
+                    'Ctrl-O': () => showOpenFileModal(),
+                    'Ctrl-F': 'findPersistent',
+                    'Ctrl-H': 'replace',
+                    'Alt-F': 'findPersistent',
+                    'Ctrl-G': 'jumpToLine',
+                    'Ctrl-I': () => quickAIAction('explain')  // Explain selected code
+                }
+            });
+
+            editor.on('change', () => {
+                handleCodeChange();
+                updateCursorPosition();
+            });
+
+            editor.on('cursorActivity', () => {
+                updateCursorPosition();
+            });
+        }
+
+        // AI Panel Functions
+        function initializeAIResize() {
+            const handle = document.getElementById('aiResizeHandle');
+            const panel = document.getElementById('aiPanel');
+
+            handle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startX = e.clientX;
+                startWidth = parseInt(document.defaultView.getComputedStyle(panel).width, 10);
+                panel.classList.add('resizing');
+                document.addEventListener('mousemove', resize);
+                document.addEventListener('mouseup', stopResize);
+                e.preventDefault();
+            });
+
+            function resize(e) {
+                if (!isResizing) return;
+                const width = startWidth - (e.clientX - startX);
+                if (width > 250 && width < 600) {
+                    panel.style.width = width + 'px';
+                }
+            }
+
+            function stopResize() {
+                isResizing = false;
+                panel.classList.remove('resizing');
+                document.removeEventListener('mousemove', resize);
+                document.removeEventListener('mouseup', stopResize);
+            }
+        }
+
+        function toggleAIPanel() {
+            const panel = document.getElementById('aiPanel');
+            const handle = document.getElementById('aiResizeHandle');
+            aiPanelVisible = !aiPanelVisible;
+            
+            if (aiPanelVisible) {
+                panel.style.width = '350px';
+                handle.style.display = 'block';
+                panel.querySelector('.ai-header button:last-child i').className = 'fas fa-chevron-right';
+            } else {
+                panel.style.width = '40px';
+                handle.style.display = 'none';
+                panel.querySelector('.ai-header button:last-child i').className = 'fas fa-chevron-left';
+            }
+        }
+
+        async function sendAIMessage() {
+            const input = document.getElementById('aiInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const sendBtn = document.getElementById('aiSendBtn');
+            sendBtn.disabled = true;
+            input.value = '';
+
+            // Add user message to chat
+            addAIMessage(message, 'user');
+
+            // Show typing indicator
+            const typingId = showAITyping();
+
+            try {
+                const includeContext = document.getElementById('includeContext').checked;
+                
+                const response = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        message, 
+                        include_context: includeContext 
+                    })
+                });
+
+                removeAITyping(typingId);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    addAIMessage(data.response, 'assistant');
+                } else {
+                    const error = await response.json();
+                    addAIMessage(`Error: ${error.error || 'Failed to get response'}`, 'assistant');
+                }
+            } catch (error) {
+                removeAITyping(typingId);
+                addAIMessage(`Error: ${error.message}`, 'assistant');
+            }
+
+            sendBtn.disabled = false;
+            input.focus();
+        }
+
+        function addAIMessage(content, role) {
+            const container = document.getElementById('aiChatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `ai-message ${role}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.innerHTML = role === 'user' ? 
+                '<i class="fas fa-user"></i>' : 
+                '<i class="fas fa-robot"></i>';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            // Render markdown if it's assistant message
+            if (role === 'assistant' && window.marked) {
+                contentDiv.innerHTML = marked.parse(content);
+                // Highlight code blocks
+                contentDiv.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            } else {
+                contentDiv.textContent = content;
+            }
+
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(contentDiv);
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showAITyping() {
+            const container = document.getElementById('aiChatContainer');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'ai-message assistant';
+            typingDiv.id = 'typing-indicator';
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.innerHTML = '<i class="fas fa-robot"></i>';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.innerHTML = `
+                <div class="ai-typing">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            `;
+
+            typingDiv.appendChild(avatar);
+            typingDiv.appendChild(contentDiv);
+            container.appendChild(typingDiv);
+            container.scrollTop = container.scrollHeight;
+            
+            return 'typing-indicator';
+        }
+
+        function removeAITyping(id) {
+            const typing = document.getElementById(id);
+            if (typing) typing.remove();
+        }
+
+        function handleAIInputKeydown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendAIMessage();
+            }
+        }
+
+        async function quickAIAction(action) {
+            if (!currentFileId) {
+                showToast('Please open a file first', 'warning');
+                return;
+            }
+
+            const selectedText = editor.getSelection();
+            const content = selectedText || editor.getValue();
+            
+            if (!content) {
+                showToast('No code to work with', 'warning');
+                return;
+            }
+
+            let prompt = '';
+            switch(action) {
+                case 'generate':
+                    const lang = prompt('What would you like me to generate? (e.g., "a football webpage")');
+                    if (!lang) return;
+                    prompt = `Generate ${lang} code for: ${lang}`;
+                    break;
+                case 'explain':
+                    prompt = `Explain this code:\n\n${content}`;
+                    break;
+                case 'debug':
+                    prompt = `Debug this code and suggest fixes:\n\n${content}`;
+                    break;
+                case 'review':
+                    prompt = `Review this code and suggest improvements:\n\n${content}`;
+                    break;
+            }
+
+            document.getElementById('aiInput').value = prompt;
+            sendAIMessage();
+        }
+
+        async function clearAIConversation() {
+            if (!confirm('Clear AI conversation history?')) return;
+            
+            try {
+                const response = await fetch('/api/ai/conversation', {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    document.getElementById('aiChatContainer').innerHTML = `
+                        <div class="ai-message assistant">
+                            <div class="message-avatar">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            <div class="message-content">
+                                <p>Hello! I'm DeepSeek, your AI programming assistant. How can I help you today?</p>
+                            </div>
+                        </div>
+                    `;
+                    showToast('Conversation cleared');
+                }
+            } catch (error) {
+                showToast('Error clearing conversation', 'error');
+            }
+        }
+
+        // File System Functions
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files');
+                folders = await response.json();
+                renderFileExplorer();
+                updateFolderSelects();
+            } catch (error) {
+                console.error('Error loading files:', error);
+                showToast('Error loading files', 'error');
+            }
+        }
+
+        function renderFileExplorer() {
+            const explorer = document.getElementById('fileExplorer');
+            explorer.innerHTML = '';
+
+            const folderEntries = Object.entries(folders);
+            
+            if (folderEntries.length === 0 || (folderEntries.length === 1 && folderEntries[0][0] === 'root' && folderEntries[0][1].length === 0)) {
+                explorer.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open" style="font-size: 32px; margin-bottom: 12px;"></i>
+                        <p>No folders yet</p>
+                        <p style="font-size: 12px; color: #6a6a6a; margin-top: 8px;">Create a folder to get started</p>
+                    </div>
+                `;
+                return;
+            }
+
+            for (const [folderName, files] of Object.entries(folders)) {
+                if (folderName !== 'root') {
+                    renderFolder(folderName, folderName, files);
+                }
+            }
+        }
+
+        function renderFolder(folderName, displayName, files) {
+            const folderDiv = document.createElement('div');
+            folderDiv.className = 'folder expanded';
+            folderDiv.dataset.folder = folderName;
+
+            const folderHeader = document.createElement('div');
+            folderHeader.className = 'folder-header';
+            folderHeader.onclick = (e) => {
+                if (!e.target.closest('.folder-actions')) {
+                    toggleFolder(folderDiv);
+                }
+            };
+
+            folderHeader.innerHTML = `
+                <i class="fas fa-chevron-down"></i>
+                <i class="fas fa-folder" style="color: #dcb67a;"></i>
+                <span class="folder-name">${displayName}</span>
+                <div class="folder-actions">
+                    <button class="folder-action-btn" onclick="event.stopPropagation(); showNewFileInFolder('${folderName}')">
+                        <i class="fas fa-file"></i>
+                    </button>
+                    <button class="folder-action-btn" onclick="event.stopPropagation(); downloadFolder('${folderName}')">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button class="folder-action-btn" onclick="event.stopPropagation(); deleteFolder('${folderName}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+
+            const folderContent = document.createElement('div');
+            folderContent.className = 'folder-content';
+
+            if (files && files.length > 0) {
+                files.forEach(file => {
+                    const fileDiv = createFileElement(file);
+                    folderContent.appendChild(fileDiv);
+                });
+            } else {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'file-item';
+                emptyDiv.style.opacity = '0.6';
+                emptyDiv.style.fontStyle = 'italic';
+                emptyDiv.innerHTML = `
+                    <i class="fas fa-empty"></i>
+                    <span class="file-name">Empty folder</span>
+                `;
+                folderContent.appendChild(emptyDiv);
+            }
+
+            folderDiv.appendChild(folderHeader);
+            folderDiv.appendChild(folderContent);
+            document.getElementById('fileExplorer').appendChild(folderDiv);
+        }
+
+        function createFileElement(file) {
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'file-item';
+            if (file.id === currentFileId) {
+                fileDiv.classList.add('active');
+            }
+            fileDiv.dataset.fileId = file.id;
+            fileDiv.onclick = () => openFile(file.id);
+
+            const iconInfo = getFileIcon(file.name);
+            const iconClass = iconInfo.brand ? 'fab' : 'fas';
+
+            fileDiv.innerHTML = `
+                <i class="${iconClass} ${iconInfo.icon}" style="color: ${iconInfo.color};"></i>
+                <span class="file-name">${file.name}</span>
+                <div class="file-actions">
+                    <button class="file-action-btn" onclick="event.stopPropagation(); downloadFile('${file.id}')">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button class="file-action-btn" onclick="event.stopPropagation(); deleteFile('${file.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+
+            return fileDiv;
+        }
+
+        function toggleFolder(folderDiv) {
+            folderDiv.classList.toggle('expanded');
+            const chevron = folderDiv.querySelector('.fa-chevron-down');
+            if (chevron) {
+                chevron.style.transform = folderDiv.classList.contains('expanded') ? 'rotate(0deg)' : 'rotate(-90deg)';
+            }
+        }
+
+        function updateFolderSelects() {
+            const selects = ['newFileFolder', 'openFileFolder'];
+            
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (!select) return;
+                
+                select.innerHTML = '<option value="root">Root</option>';
+                
+                for (const folderName of Object.keys(folders)) {
+                    if (folderName !== 'root') {
+                        const option = document.createElement('option');
+                        option.value = folderName;
+                        option.textContent = folderName;
+                        select.appendChild(option);
+                    }
+                }
+            });
+        }
+
+        // Modal Functions
+        function showNewFileModal() {
+            document.getElementById('newFileModal').classList.add('active');
+            document.getElementById('newFileName').value = 'untitled.py';
+        }
+
+        function showNewFolderModal() {
+            document.getElementById('newFolderModal').classList.add('active');
+            document.getElementById('newFolderName').value = '';
+        }
+
+        function showOpenFileModal() {
+            document.getElementById('openFileModal').classList.add('active');
+            document.getElementById('openFileName').value = '';
+        }
+
+        function showOpenFolderModal() {
+            document.getElementById('openFolderModal').classList.add('active');
+            document.getElementById('openFolderName').value = '';
+        }
+
+        function showNewFileInFolder(folderName) {
+            document.getElementById('newFileModal').classList.add('active');
+            document.getElementById('newFileName').value = 'untitled.py';
+            document.getElementById('newFileFolder').value = folderName;
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function showContextMenu(event) {
+            const menu = document.getElementById('contextMenu');
+            menu.classList.add('active');
+            menu.style.left = event.pageX + 'px';
+            menu.style.top = event.pageY + 'px';
+            
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu() {
+                    menu.classList.remove('active');
+                    document.removeEventListener('click', closeMenu);
+                }, { once: true });
+            }, 100);
+        }
+
+        async function createNewFile() {
+            const filename = document.getElementById('newFileName').value;
+            const folder = document.getElementById('newFileFolder').value;
+
+            if (!filename) {
+                showToast('Please enter a filename', 'warning');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename, content: '', folder })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    closeModal('newFileModal');
+                    await loadFiles();
+                    showToast(`File ${filename} created`);
+                    await openFile(data.id);
+                } else {
+                    showToast(data.error || 'Error creating file', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Error creating file', 'error');
+            }
+        }
+
+        async function createNewFolder() {
+            const folderName = document.getElementById('newFolderName').value;
+
+            if (!folderName) {
+                showToast('Please enter a folder name', 'warning');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ folder_name: folderName })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    closeModal('newFolderModal');
+                    await loadFiles();
+                    showToast(`Folder ${folderName} created`);
+                } else {
+                    showToast(data.error || 'Error creating folder', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Error creating folder', 'error');
+            }
+        }
+
+        async function openOrCreateFile() {
+            const filename = document.getElementById('openFileName').value;
+            const folder = document.getElementById('openFileFolder').value;
+
+            if (!filename) {
+                showToast('Please enter a filename', 'warning');
+                return;
+            }
+
+            let foundFile = null;
+            if (folders[folder]) {
+                foundFile = folders[folder].find(f => f.name === filename);
+            }
+
+            if (foundFile) {
+                await openFile(foundFile.id);
+                closeModal('openFileModal');
+            } else {
+                closeModal('openFileModal');
+                document.getElementById('newFileName').value = filename;
+                document.getElementById('newFileFolder').value = folder;
+                document.getElementById('newFileModal').classList.add('active');
+            }
+        }
+
+        async function openOrCreateFolder() {
+            const folderName = document.getElementById('openFolderName').value;
+
+            if (!folderName) {
+                showToast('Please enter a folder name', 'warning');
+                return;
+            }
+
+            if (folders[folderName]) {
+                showToast(`Folder ${folderName} already open`);
+            } else {
+                await createNewFolder();
+            }
+            closeModal('openFolderModal');
+        }
+
+        async function openFile(fileId) {
+            try {
+                const response = await fetch(`/api/file/${fileId}`);
+                const file = await response.json();
+
+                if (response.ok) {
+                    if (currentFileId) {
+                        await autoSave();
+                    }
+
+                    currentFileId = file.id;
+                    currentFileLanguage = file.language;
+
+                    editor.setValue(file.content);
+                    editor.setOption('mode', getCodeMirrorMode(file.language));
+                    
+                    document.getElementById('currentFileName').innerHTML = `<i class="fas fa-file"></i> ${file.name}`;
+                    document.getElementById('currentLanguage').textContent = file.language.toUpperCase();
+                    
+                    document.getElementById('formatBtn').style.display = 'inline-flex';
+                    document.getElementById('downloadBtn').style.display = 'inline-flex';
+                    document.getElementById('deleteBtn').style.display = 'inline-flex';
+
+                    displayProblems(file.errors || []);
+
+                    document.querySelectorAll('.file-item').forEach(el => {
+                        el.classList.remove('active');
+                        if (el.dataset.fileId === fileId) {
+                            el.classList.add('active');
+                        }
+                    });
+
+                    showToast(`Opened ${file.name}`);
+                }
+            } catch (error) {
+                console.error('Error opening file:', error);
+                showToast('Error opening file', 'error');
+            }
+        }
+
+        function getCodeMirrorMode(language) {
+            const modeMap = {
+                'python': 'python',
+                'html': 'htmlmixed',
+                'css': 'css',
+                'javascript': 'javascript',
+                'sql': 'text/x-sql',
+                'json': 'application/json',
+                'xml': 'xml',
+                'php': 'php',
+                'ruby': 'ruby',
+                'go': 'go',
+                'rust': 'rust'
+            };
+            return modeMap[language] || 'text/plain';
+        }
+
+        function handleCodeChange() {
+            if (autoSaveTimeout) {
+                clearTimeout(autoSaveTimeout);
+            }
+            autoSaveTimeout = setTimeout(autoSave, 1000);
+
+            if (currentFileId) {
+                checkSyntax(editor.getValue());
+            }
+        }
+
+        async function autoSave() {
+            if (!currentFileId) return;
+
+            const content = editor.getValue();
+            
+            try {
+                const response = await fetch(`/api/file/${currentFileId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    showToast('Auto-saved', 'success');
+                    displayProblems(data.errors || []);
+                }
+            } catch (error) {
+                console.error('Error auto-saving:', error);
+            }
+        }
+
+        async function checkSyntax(content) {
+            try {
+                const response = await fetch('/api/check_syntax', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        content, 
+                        language: currentFileLanguage 
+                    })
+                });
+
+                const data = await response.json();
+                displayProblems(data.errors || []);
+            } catch (error) {
+                console.error('Error checking syntax:', error);
+            }
+        }
+
+        function displayProblems(errors) {
+            const problemsContent = document.getElementById('problemsContent');
+            const problemCount = document.getElementById('problemCount');
+            
+            const errorItems = errors.filter(e => e.type === 'error').length;
+            const warningItems = errors.filter(e => e.type === 'warning').length;
+            
+            problemCount.textContent = `${errorItems} errors, ${warningItems} warnings`;
+
+            if (errors.length === 0) {
+                problemsContent.innerHTML = `
+                    <div class="no-problems">
+                        <i class="fas fa-check-circle" style="color: #6a9955;"></i> No problems detected
+                    </div>
+                `;
+                return;
+            }
+
+            problemsContent.innerHTML = errors.map(error => `
+                <div class="problem-item ${error.type}" onclick="jumpToLine(${error.line})">
+                    <span class="problem-icon">
+                        <i class="fas ${error.type === 'error' ? 'fa-times-circle' : 'fa-exclamation-triangle'}"></i>
+                    </span>
+                    <span class="problem-message">${error.message}</span>
+                    <span class="problem-location">[Ln ${error.line}]</span>
+                </div>
+            `).join('');
+        }
+
+        function jumpToLine(line) {
+            editor.setCursor(line - 1, 0);
+            editor.focus();
+            editor.addLineClass(line - 1, 'background', 'CodeMirror-activeline');
+        }
+
+        async function formatCode() {
+            if (!currentFileId) return;
+
+            const content = editor.getValue();
+
+            try {
+                const response = await fetch('/api/format', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        content, 
+                        language: currentFileLanguage 
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    editor.setValue(data.formatted);
+                    await autoSave();
+                    showToast('Code formatted');
+                }
+            } catch (error) {
+                console.error('Error formatting code:', error);
+                showToast('Error formatting code', 'error');
+            }
+        }
+
+        function downloadCurrentFile() {
+            if (!currentFileId) return;
+            window.location.href = `/api/file/${currentFileId}/download`;
+            showToast('Downloading file...');
+        }
+
+        function downloadFile(fileId) {
+            window.location.href = `/api/file/${fileId}/download`;
+            showToast('Downloading file...');
+        }
+
+        function downloadFolder(folderName) {
+            window.location.href = `/api/folder/${folderName}/download`;
+            showToast('Downloading folder...');
+        }
+
+        function downloadAll() {
+            window.location.href = '/api/download_all';
+            showToast('Downloading all files...');
+        }
+
+        async function deleteFile(fileId) {
+            if (!confirm('Are you sure you want to delete this file?')) return;
+
+            try {
+                const response = await fetch(`/api/file/${fileId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    if (fileId === currentFileId) {
+                        currentFileId = null;
+                        editor.setValue('');
+                        document.getElementById('currentFileName').innerHTML = '<i class="fas fa-file"></i> No file selected';
+                        document.getElementById('currentLanguage').textContent = '-';
+                        document.getElementById('formatBtn').style.display = 'none';
+                        document.getElementById('downloadBtn').style.display = 'none';
+                        document.getElementById('deleteBtn').style.display = 'none';
+                        displayProblems([]);
+                    }
+                    await loadFiles();
+                    showToast('File deleted');
+                }
+            } catch (error) {
+                console.error('Error deleting file:', error);
+                showToast('Error deleting file', 'error');
+            }
+        }
+
+        async function deleteCurrentFile() {
+            if (currentFileId) {
+                await deleteFile(currentFileId);
+            }
+        }
+
+        async function deleteFolder(folderName) {
+            if (!confirm(`Are you sure you want to delete folder '${folderName}' and all its contents?`)) return;
+
+            try {
+                const response = await fetch(`/api/folder/${folderName}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    if (currentFileId) {
+                        const currentFile = folders[folderName]?.find(f => f.id === currentFileId);
+                        if (currentFile) {
+                            currentFileId = null;
+                            editor.setValue('');
+                            document.getElementById('currentFileName').innerHTML = '<i class="fas fa-file"></i> No file selected';
+                            document.getElementById('currentLanguage').textContent = '-';
+                            document.getElementById('formatBtn').style.display = 'none';
+                            document.getElementById('downloadBtn').style.display = 'none';
+                            document.getElementById('deleteBtn').style.display = 'none';
+                        }
+                    }
+                    await loadFiles();
+                    showToast('Folder deleted');
+                }
+            } catch (error) {
+                console.error('Error deleting folder:', error);
+                showToast('Error deleting folder', 'error');
+            }
+        }
+
+        function toggleProblemsPanel() {
+            const panel = document.getElementById('problemsPanel');
+            problemsCollapsed = !problemsCollapsed;
+            if (problemsCollapsed) {
+                panel.classList.add('collapsed');
+            } else {
+                panel.classList.remove('collapsed');
+            }
+        }
+
+        function updateCursorPosition() {
+            const cursor = editor.getCursor();
+            document.getElementById('cursorPosition').innerHTML = 
+                `<i class="fas fa-cursor"></i> Ln ${cursor.line + 1}, Col ${cursor.ch + 1}`;
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = message;
+            
+            if (type === 'error') {
+                toast.style.borderLeftColor = '#f48771';
+            } else if (type === 'warning') {
+                toast.style.borderLeftColor = '#cca700';
+            }
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 3000);
+        }
+
+        function setStatusMessage(message) {
+            document.getElementById('statusMessage').innerHTML = `<i class="fas fa-info-circle"></i> ${message}`;
+        }
+
+        function showSettings() {
+            showToast('Settings panel coming soon!', 'info');
+        }
+    </script>
+</body>
+</html>
