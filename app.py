@@ -20,7 +20,7 @@ import requests
 import time
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here-change-in-production'
+app.secret_key = '481ab1ecd68770a1a1ebdb3e5fa38cb7'
 CORS(app)
 
 # Store user sessions and their file structures
@@ -873,4 +873,5 @@ def track_current_file():
             current_file_id = parts[3]
 
 if __name__ == '__main__':
+
     app.run(debug=True, host='0.0.0.0', port=5000)
