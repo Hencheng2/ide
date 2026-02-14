@@ -5,4 +5,5 @@ python-magic
 black
 sqlparse
 autopep8
+gunicorn
 requests
