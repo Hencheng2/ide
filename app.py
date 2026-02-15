@@ -25,7 +25,7 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Get secret key from environment variable (with fallback for development only)
+# Get secret key from environment variable
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
 CORS(app)
 
@@ -33,15 +33,8 @@ CORS(app)
 user_sessions = {}
 ai_conversations = {}  # Store AI chat history per session
 
-# OpenRouter API configuration - NOW FROM ENVIRONMENT VARIABLES
-OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
+# OpenRouter API configuration - Get from environment variables
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = os.getenv('OPENROUTER_MODEL', "deepseek/deepseek-chat-v3-0324:free")
-
-# Check if API key is configured
-if not OPENROUTER_API_KEY:
-    print("⚠️ WARNING: OPENROUTER_API_KEY not found in environment variables!")
-    print("Please set it in your .env file or Render environment variables.")
 
 class IDESession:
     def __init__(self):
@@ -284,20 +277,24 @@ def format_code(content, language):
 def call_openrouter_api(messages, stream=False):
     """Call OpenRouter API with the given messages"""
     
-    # Check if API key is configured
-    if not OPENROUTER_API_KEY:
-        print("ERROR: OpenRouter API key not configured")
+    # IMPORTANT FIX: Read the key from environment directly inside the function
+    api_key = os.environ.get('OPENROUTER_API_KEY')
+    
+    if not api_key:
+        print("❌ ERROR: OPENROUTER_API_KEY is None or empty inside function!", file=sys.stderr)
         return None
     
+    print(f"✅ Using API key starting with: {api_key[:10]}...", file=sys.stderr)
+    
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": os.getenv('APP_URL', 'http://localhost:5000'),
+        "HTTP-Referer": os.getenv('APP_URL', 'https://ide-3zju.onrender.com'),
         "X-Title": "Dark IDE Pro"
     }
     
     payload = {
-        "model": OPENROUTER_MODEL,
+        "model": os.getenv('OPENROUTER_MODEL', "deepseek/deepseek-chat-v3-0324:free"),
         "messages": messages,
         "temperature": 0.3,
         "max_tokens": 4000,
@@ -315,7 +312,10 @@ def call_openrouter_api(messages, stream=False):
         response.raise_for_status()
         return response
     except requests.exceptions.RequestException as e:
-        print(f"OpenRouter API error: {e}")
+        print(f"❌ OpenRouter API error: {e}", file=sys.stderr)
+        if hasattr(e, 'response') and e.response:
+            print(f"❌ Response status: {e.response.status_code}", file=sys.stderr)
+            print(f"❌ Response body: {e.response.text[:500]}", file=sys.stderr)
         return None
 
 @app.route('/')
@@ -559,20 +559,6 @@ def check_syntax():
         'errors': errors
     })
 
-@app.route('/debug-env')
-def debug_env():
-    """Debug endpoint to check environment variables (REMOVE AFTER TESTING)"""
-    # ONLY use this temporarily for debugging!
-    debug_info = {
-        'OPENROUTER_API_KEY_exists': bool(os.getenv('OPENROUTER_API_KEY')),
-        'OPENROUTER_API_KEY_length': len(os.getenv('OPENROUTER_API_KEY', '')),
-        'OPENROUTER_API_KEY_prefix': os.getenv('OPENROUTER_API_KEY', '')[:10] if os.getenv('OPENROUTER_API_KEY') else None,
-        'OPENROUTER_MODEL': os.getenv('OPENROUTER_MODEL'),
-        'FLASK_SECRET_KEY_exists': bool(os.getenv('FLASK_SECRET_KEY')),
-        'ALL_ENV_KEYS': list(os.environ.keys()),
-    }
-    return jsonify(debug_info)
-
 @app.route('/api/download_all')
 def download_all():
     session_id = session.get('session_id')
@@ -622,10 +608,6 @@ def ai_chat():
     session_id = session.get('session_id')
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
-    
-    # Check if API key is configured
-    if not OPENROUTER_API_KEY:
-        return jsonify({'error': 'OpenRouter API key not configured. Please set OPENROUTER_API_KEY in environment variables.'}), 500
     
     data = request.json
     message = data.get('message')
@@ -687,10 +669,6 @@ def ai_chat_stream():
     session_id = session.get('session_id')
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
-    
-    # Check if API key is configured
-    if not OPENROUTER_API_KEY:
-        return jsonify({'error': 'OpenRouter API key not configured. Please set OPENROUTER_API_KEY in environment variables.'}), 500
     
     data = request.json
     message = data.get('message')
@@ -768,10 +746,6 @@ def ai_generate_code():
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
     
-    # Check if API key is configured
-    if not OPENROUTER_API_KEY:
-        return jsonify({'error': 'OpenRouter API key not configured. Please set OPENROUTER_API_KEY in environment variables.'}), 500
-    
     data = request.json
     description = data.get('description')
     language = data.get('language', 'python')
@@ -813,10 +787,6 @@ def ai_explain_code():
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
     
-    # Check if API key is configured
-    if not OPENROUTER_API_KEY:
-        return jsonify({'error': 'OpenRouter API key not configured. Please set OPENROUTER_API_KEY in environment variables.'}), 500
-    
     data = request.json
     code = data.get('code')
     language = data.get('language', 'python')
@@ -852,10 +822,6 @@ def ai_debug_code():
     session_id = session.get('session_id')
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
-    
-    # Check if API key is configured
-    if not OPENROUTER_API_KEY:
-        return jsonify({'error': 'OpenRouter API key not configured. Please set OPENROUTER_API_KEY in environment variables.'}), 500
     
     data = request.json
     code = data.get('code')
@@ -928,13 +894,26 @@ def set_current_file(file_id):
     session['current_file_id'] = file_id
     return jsonify({'success': True, 'file_id': file_id})
 
+# Debug route - REMOVE AFTER TESTING
+@app.route('/debug-env')
+def debug_env():
+    """Debug endpoint to check environment variables (REMOVE AFTER TESTING)"""
+    debug_info = {
+        'OPENROUTER_API_KEY_exists': bool(os.getenv('OPENROUTER_API_KEY')),
+        'OPENROUTER_API_KEY_length': len(os.getenv('OPENROUTER_API_KEY', '')),
+        'OPENROUTER_API_KEY_prefix': os.getenv('OPENROUTER_API_KEY', '')[:10] if os.getenv('OPENROUTER_API_KEY') else None,
+        'OPENROUTER_MODEL': os.getenv('OPENROUTER_MODEL'),
+        'FLASK_SECRET_KEY_exists': bool(os.getenv('FLASK_SECRET_KEY')),
+        'ALL_ENV_KEYS': list(os.environ.keys()),
+    }
+    return jsonify(debug_info)
+
 if __name__ == '__main__':
     # Get port from environment (for Render)
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
     
-    # Create upload directory if needed
+    # Create temp directory if needed
     os.makedirs('temp', exist_ok=True)
     
     app.run(debug=debug, host='0.0.0.0', port=port)
-
