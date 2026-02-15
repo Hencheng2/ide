@@ -7,3 +7,5 @@ sqlparse
 autopep8
 gunicorn
 requests
+python-dotenv
+
