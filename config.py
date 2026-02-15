@@ -1,0 +1,74 @@
+# config.py
+
+import os
+
+# --- Flask Secret Key ---
+SECRET_KEY = os.getenv('FLASK_SECRET_KEY', '09da35833ef9cb699888f08d66a0cfb827fb10e53f6c1549')
+
+# --- Database Configuration ---
+SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///parish.db')
+SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+# --- Gemini API Key ---
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', "AIzaSyAnuXwyHYkpuLtxM5x9LTC12ER8ajjttxU")
+
+# --- OpenRouter API Configuration ---
+OPENROUTER_API_KEY = "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"
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODEL = "deepseek/deepseek-chat-v3-0324:free"
+
+# --- Firebase Admin SDK Credentials Path ---
+FIREBASE_ADMIN_CREDENTIALS_PATH = os.path.join(os.path.dirname(__file__), "firebase_admin_key.json")
+
+# --- Firebase Client-Side Configuration ---
+FIREBASE_CLIENT_CONFIG = {
+    "apiKey": os.getenv('FIREBASE_API_KEY', "AIzaSyDU9AsIqG2yCkOtl_RCNvhxayVuT4tjkY0"),
+    "authDomain": "henley-23.firebaseapp.com",
+    "projectId": "henley-23",
+    "storageBucket": "henley-23.firebasestorage.app",
+    "messagingSenderId": "406631846317",
+    "appId": "1:406631846317:web:ee9165b6afbb1b61cd9124",
+    "measurementId": "G-7RE2TW0JQ9"
+}
+
+# --- Google OAuth Configuration ---
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '1054703045673-vq7rv0etrsacln8u6rd48idp17ekgv2h.apps.googleusercontent.com')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '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')
+GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
+GOOGLE_OAUTH_REDIRECT_URI = os.getenv('GOOGLE_OAUTH_REDIRECT_URI', 'http://localhost:5000/login/google/callback')
+GOOGLE_OAUTH_SCOPES = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile"
+]
+
+# --- Canvas App ID (if applicable) ---
+CANVAS_APP_ID = os.getenv('CANVAS_APP_ID', "your_family_tree_app")
+
+# --- Admin User Credentials ---
+ADMIN_USERNAME = "Henry"
+ADMIN_PASSWORD_RAW = "Dec@2003"
+ADMIN_EMAIL = 'hochieng86@gmail.com'
+
+# --- Mail Configuration ---
+MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
+MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', 'on', '1']
+MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL', 'false').lower() in ['true', 'on', '1']
+MAIL_USERNAME = os.environ.get('MAIL_USERNAME', 'hochieng86@gmail.com')
+MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', 'ozwuasguuuotojgs')
+MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'hochieng86@gmail.com')
+
+# --- Weather API Key ---
+WEATHER_API_KEY = "1b09eb1f11161214d84735191e81d44d"
+
+# --- Wolfram App ID ---
+WOLFRAM_APP_ID = "3LP9ARQE7V"
+
+# --- SMS Configuration ---
+SMS_API_KEY = os.getenv('SMS_API_KEY', '')
+SMS_SENDER_ID = os.getenv('SMS_SENDER_ID', 'SIGULU')
+
+# --- Donation Settings ---
+CURRENCY = 'KES'
+MPESA_TILL = "4864614"
