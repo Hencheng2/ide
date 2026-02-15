@@ -908,6 +908,87 @@ def debug_env():
     }
     return jsonify(debug_info)
 
+@app.route('/debug-test-api')
+def debug_test_api():
+    """Test OpenRouter API directly"""
+    import requests
+    import os
+    
+    api_key = os.environ.get('OPENROUTER_API_KEY')
+    
+    if not api_key:
+        return jsonify({'error': 'No API key found'})
+    
+    # Test 1: Just check if key format is valid
+    key_info = {
+        'key_exists': True,
+        'key_length': len(api_key),
+        'key_prefix': api_key[:10] + '...',
+        'key_format_valid': api_key.startswith('sk-or-v1-')
+    }
+    
+    # Test 2: Try a simple API call to list models
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(
+            "https://openrouter.ai/api/v1/models",
+            headers=headers,
+            timeout=10
+        )
+        
+        api_test = {
+            'status_code': response.status_code,
+            'success': response.status_code == 200,
+            'response_preview': response.text[:200] if response.text else None
+        }
+        
+        if response.status_code == 401:
+            api_test['error'] = 'Unauthorized - Key might be invalid or revoked'
+        elif response.status_code == 403:
+            api_test['error'] = 'Forbidden - Key might not have permissions'
+            
+    except Exception as e:
+        api_test = {
+            'error': str(e),
+            'type': type(e).__name__
+        }
+    
+    # Test 3: Try a simple chat completion
+    try:
+        chat_response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json={
+                "model": "deepseek/deepseek-chat-v3-0324:free",
+                "messages": [
+                    {"role": "user", "content": "Say 'test successful' if you can hear me"}
+                ],
+                "max_tokens": 10
+            },
+            timeout=10
+        )
+        
+        chat_test = {
+            'status_code': chat_response.status_code,
+            'success': chat_response.status_code == 200,
+            'response': chat_response.json() if chat_response.status_code == 200 else chat_response.text[:200]
+        }
+    except Exception as e:
+        chat_test = {
+            'error': str(e),
+            'type': type(e).__name__
+        }
+    
+    return jsonify({
+        'key_info': key_info,
+        'api_test': api_test,
+        'chat_test': chat_test
+    })
+
 if __name__ == '__main__':
     # Get port from environment (for Render)
     port = int(os.getenv('PORT', 5000))
@@ -917,3 +998,4 @@ if __name__ == '__main__':
     os.makedirs('temp', exist_ok=True)
     
     app.run(debug=debug, host='0.0.0.0', port=port)
+
