@@ -294,7 +294,7 @@ def call_openrouter_api(messages, stream=False):
     }
     
     payload = {
-        "model": os.getenv('OPENROUTER_MODEL', "deepseek/deepseek-chat-v3-0324:free"),
+        "model": os.getenv('OPENROUTER_MODEL', "deepseek/deepseek-chat"),
         "messages": messages,
         "temperature": 0.3,
         "max_tokens": 4000,
@@ -998,4 +998,5 @@ if __name__ == '__main__':
     os.makedirs('temp', exist_ok=True)
     
     app.run(debug=debug, host='0.0.0.0', port=port)
+
 
