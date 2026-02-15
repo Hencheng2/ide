@@ -19,16 +19,6 @@ env.bak/
 venv.bak/
 pythonenv.*
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Uploads
-/uploads
-/static/uploads
-/media
-
 # IDE
 .vscode/
 .idea/
@@ -45,12 +35,11 @@ logs/
 *.log
 *.log.*
 
-# Config files (if you have any)
-config.py
-config.local.py
-secrets.py
-credentials.json
-*.key
+# Temp directories
+temp/
+uploads/
+*.zip
+*.tar.gz
 
 # Flask
 instance/
