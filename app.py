@@ -18,7 +18,7 @@ import sqlparse
 import autopep8
 import requests
 import time
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -892,4 +892,5 @@ if __name__ == '__main__':
     os.makedirs('temp', exist_ok=True)
     
     app.run(debug=debug, host='0.0.0.0', port=port)
+
 
