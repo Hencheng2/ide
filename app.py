@@ -18,6 +18,7 @@ import sqlparse
 import autopep8
 import requests
 import time
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -33,8 +34,14 @@ CORS(app)
 user_sessions = {}
 ai_conversations = {}  # Store AI chat history per session
 
-# OpenRouter API configuration - Get from environment variables
-OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+# Configure Google Gemini
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    # Use Gemini 2.0 Flash - fast and free
+    GEMINI_MODEL = 'gemini-2.0-flash'
+else:
+    print("⚠️ WARNING: GEMINI_API_KEY not found in environment variables!")
 
 class IDESession:
     def __init__(self):
@@ -274,48 +281,50 @@ def format_code(content, language):
         print(f"Formatting error: {e}")
         return content
 
-def call_openrouter_api(messages, stream=False):
-    """Call OpenRouter API with the given messages"""
+def call_gemini_api(messages, stream=False):
+    """Call Google Gemini API with the given messages"""
     
-    # IMPORTANT FIX: Read the key from environment directly inside the function
-    api_key = os.environ.get('OPENROUTER_API_KEY')
-    
-    if not api_key:
-        print("❌ ERROR: OPENROUTER_API_KEY is None or empty inside function!", file=sys.stderr)
+    if not GEMINI_API_KEY:
+        print("❌ ERROR: GEMINI_API_KEY not configured!", file=sys.stderr)
         return None
     
-    print(f"✅ Using API key starting with: {api_key[:10]}...", file=sys.stderr)
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": os.getenv('APP_URL', 'https://ide-3zju.onrender.com'),
-        "X-Title": "Dark IDE Pro"
-    }
-    
-    payload = {
-        "model": os.getenv('OPENROUTER_MODEL', "deepseek/deepseek-chat"),
-        "messages": messages,
-        "temperature": 0.3,
-        "max_tokens": 4000,
-        "stream": stream
-    }
-    
     try:
-        response = requests.post(
-            OPENROUTER_API_URL,
-            headers=headers,
-            json=payload,
-            stream=stream,
-            timeout=30
-        )
-        response.raise_for_status()
-        return response
-    except requests.exceptions.RequestException as e:
-        print(f"❌ OpenRouter API error: {e}", file=sys.stderr)
-        if hasattr(e, 'response') and e.response:
-            print(f"❌ Response status: {e.response.status_code}", file=sys.stderr)
-            print(f"❌ Response body: {e.response.text[:500]}", file=sys.stderr)
+        # Extract the system prompt and user message
+        system_prompt = ""
+        user_message = ""
+        
+        for msg in messages:
+            if msg['role'] == 'system':
+                system_prompt = msg['content']
+            elif msg['role'] == 'user':
+                user_message = msg['content']
+        
+        # Combine system prompt and user message for Gemini
+        full_prompt = f"{system_prompt}\n\nUser: {user_message}" if system_prompt else user_message
+        
+        # Create Gemini model
+        model = genai.GenerativeModel(GEMINI_MODEL)
+        
+        if stream:
+            # For streaming responses
+            response = model.generate_content(full_prompt, stream=True)
+            
+            def generate():
+                full_response = ""
+                for chunk in response:
+                    if chunk.text:
+                        full_response += chunk.text
+                        yield f"data: {json.dumps({'content': chunk.text})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
+            
+            return Response(generate(), mimetype='text/event-stream')
+        else:
+            # For non-streaming responses
+            response = model.generate_content(full_prompt)
+            return response.text
+            
+    except Exception as e:
+        print(f"❌ Gemini API error: {e}", file=sys.stderr)
         return None
 
 @app.route('/')
@@ -604,10 +613,13 @@ def download_all():
 # AI Endpoints
 @app.route('/api/ai/chat', methods=['POST'])
 def ai_chat():
-    """Non-streaming chat with AI"""
+    """Non-streaming chat with AI using Gemini"""
     session_id = session.get('session_id')
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
+    
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'Gemini API key not configured. Please set GEMINI_API_KEY in environment variables.'}), 500
     
     data = request.json
     message = data.get('message')
@@ -627,48 +639,42 @@ def ai_chat():
     # Build conversation history
     conversation = ai_conversations.get(session_id, [])
     
-    # Prepare messages for API
-    messages = [
-        {
-            "role": "system",
-            "content": """You are DeepSeek, an expert AI programming assistant integrated into Dark IDE Pro. 
-            You help users write, debug, and understand code. Provide clear, concise, and practical solutions.
-            When generating code, ensure it's complete and production-ready. Use markdown for code blocks."""
-        }
+    # Prepare messages for Gemini (simplified format)
+    system_prompt = """You are DeepSeek, an expert AI programming assistant integrated into Dark IDE Pro. 
+    You help users write, debug, and understand code. Provide clear, concise, and practical solutions.
+    When generating code, ensure it's complete and production-ready. Use markdown for code blocks."""
+    
+    # Get last few messages for context (but Gemini handles this internally)
+    messages_for_api = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": message + context}
     ]
     
-    # Add conversation history (last 10 messages for context)
-    for msg in conversation[-10:]:
-        messages.append(msg)
+    # Call Gemini API
+    response_text = call_gemini_api(messages_for_api)
     
-    # Add current message with context
-    user_message = message + context
-    messages.append({"role": "user", "content": user_message})
-    
-    # Call API
-    response = call_openrouter_api(messages)
-    if not response:
+    if not response_text:
         return jsonify({'error': 'Failed to get response from AI. Please check your API key.'}), 500
-    
-    result = response.json()
-    ai_response = result['choices'][0]['message']['content']
     
     # Save to conversation history
     conversation.append({"role": "user", "content": message})
-    conversation.append({"role": "assistant", "content": ai_response})
+    conversation.append({"role": "assistant", "content": response_text})
     ai_conversations[session_id] = conversation
     
     return jsonify({
-        'response': ai_response,
+        'response': response_text,
         'conversation': conversation
     })
 
 @app.route('/api/ai/chat/stream', methods=['POST'])
 def ai_chat_stream():
-    """Streaming chat with AI"""
+    """Streaming chat with AI using Gemini"""
     session_id = session.get('session_id')
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
+    
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'Gemini API key not configured'}), 500
     
     data = request.json
     message = data.get('message')
@@ -685,63 +691,21 @@ def ai_chat_stream():
         if file_info:
             context = f"\n\nCurrent file ({file_info['name']}):\n```{file_info['extension']}\n{file_info['content']}\n```"
     
-    # Build conversation history
-    conversation = ai_conversations.get(session_id, [])
+    # Prepare messages
+    system_prompt = """You are DeepSeek, an expert AI programming assistant integrated into Dark IDE Pro. 
+    You help users write, debug, and understand code. Provide clear, concise, and practical solutions."""
     
-    # Prepare messages for API
-    messages = [
-        {
-            "role": "system",
-            "content": """You are DeepSeek, an expert AI programming assistant integrated into Dark IDE Pro. 
-            You help users write, debug, and understand code. Provide clear, concise, and practical solutions.
-            When generating code, ensure it's complete and production-ready. Use markdown for code blocks."""
-        }
+    messages_for_api = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": message + context}
     ]
     
-    # Add conversation history
-    for msg in conversation[-10:]:
-        messages.append(msg)
-    
-    # Add current message with context
-    user_message = message + context
-    messages.append({"role": "user", "content": user_message})
-    
-    # Call API with streaming
-    response = call_openrouter_api(messages, stream=True)
-    if not response:
-        return jsonify({'error': 'Failed to get response from AI'}), 500
-    
-    def generate():
-        full_response = ""
-        for line in response.iter_lines():
-            if line:
-                line = line.decode('utf-8')
-                if line.startswith('data: '):
-                    data = line[6:]
-                    if data == '[DONE]':
-                        break
-                    try:
-                        chunk = json.loads(data)
-                        if 'choices' in chunk:
-                            content = chunk['choices'][0]['delta'].get('content', '')
-                            if content:
-                                full_response += content
-                                yield f"data: {json.dumps({'content': content})}\n\n"
-                    except json.JSONDecodeError:
-                        continue
-        
-        # Save to conversation history
-        conversation.append({"role": "user", "content": message})
-        conversation.append({"role": "assistant", "content": full_response})
-        ai_conversations[session_id] = conversation
-        
-        yield f"data: {json.dumps({'done': True})}\n\n"
-    
-    return Response(generate(), mimetype='text/event-stream')
+    # Return streaming response
+    return call_gemini_api(messages_for_api, stream=True)
 
 @app.route('/api/ai/generate', methods=['POST'])
 def ai_generate_code():
-    """Generate code based on description"""
+    """Generate code based on description using Gemini"""
     session_id = session.get('session_id')
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
@@ -753,27 +717,22 @@ def ai_generate_code():
     if not description:
         return jsonify({'error': 'Description is required'}), 400
     
+    prompt = f"""Generate {language} code for: {description}
+    
+    Return ONLY the code without explanations unless specifically asked. Use proper formatting and best practices."""
+    
     messages = [
-        {
-            "role": "system",
-            "content": f"""You are an expert {language} developer. Generate complete, production-ready code based on the user's description.
-            Return ONLY the code without explanations unless specifically asked. Use proper formatting and best practices."""
-        },
-        {
-            "role": "user",
-            "content": f"Generate {language} code for: {description}"
-        }
+        {"role": "system", "content": f"You are an expert {language} developer."},
+        {"role": "user", "content": prompt}
     ]
     
-    response = call_openrouter_api(messages)
-    if not response:
+    response_text = call_gemini_api(messages)
+    
+    if not response_text:
         return jsonify({'error': 'Failed to get response from AI'}), 500
     
-    result = response.json()
-    generated_code = result['choices'][0]['message']['content']
-    
     # Clean up code (remove markdown code blocks if present)
-    generated_code = re.sub(r'^```\w*\n', '', generated_code)
+    generated_code = re.sub(r'^```\w*\n', '', response_text)
     generated_code = re.sub(r'\n```$', '', generated_code)
     
     return jsonify({
@@ -782,7 +741,7 @@ def ai_generate_code():
 
 @app.route('/api/ai/explain', methods=['POST'])
 def ai_explain_code():
-    """Explain selected code"""
+    """Explain selected code using Gemini"""
     session_id = session.get('session_id')
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
@@ -794,31 +753,25 @@ def ai_explain_code():
     if not code:
         return jsonify({'error': 'Code is required'}), 400
     
+    prompt = f"Explain this {language} code:\n\n```{language}\n{code}\n```"
+    
     messages = [
-        {
-            "role": "system",
-            "content": "You are an expert programmer. Explain the given code in a clear, educational way."
-        },
-        {
-            "role": "user",
-            "content": f"Explain this {language} code:\n\n```{language}\n{code}\n```"
-        }
+        {"role": "system", "content": "You are an expert programmer. Explain code in a clear, educational way."},
+        {"role": "user", "content": prompt}
     ]
     
-    response = call_openrouter_api(messages)
-    if not response:
+    response_text = call_gemini_api(messages)
+    
+    if not response_text:
         return jsonify({'error': 'Failed to get response from AI'}), 500
     
-    result = response.json()
-    explanation = result['choices'][0]['message']['content']
-    
     return jsonify({
-        'explanation': explanation
+        'explanation': response_text
     })
 
 @app.route('/api/ai/debug', methods=['POST'])
 def ai_debug_code():
-    """Debug code and suggest fixes"""
+    """Debug code and suggest fixes using Gemini"""
     session_id = session.get('session_id')
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
@@ -837,26 +790,20 @@ def ai_debug_code():
             f"- Line {e['line']}: {e['message']}" for e in errors
         ])
     
+    prompt = f"Debug this {language} code:{error_context}\n\n```{language}\n{code}\n```"
+    
     messages = [
-        {
-            "role": "system",
-            "content": "You are an expert debugger. Analyze the code and errors, then provide fixes and explanations."
-        },
-        {
-            "role": "user",
-            "content": f"Debug this {language} code:{error_context}\n\n```{language}\n{code}\n```"
-        }
+        {"role": "system", "content": "You are an expert debugger. Analyze code and errors, then provide fixes."},
+        {"role": "user", "content": prompt}
     ]
     
-    response = call_openrouter_api(messages)
-    if not response:
+    response_text = call_gemini_api(messages)
+    
+    if not response_text:
         return jsonify({'error': 'Failed to get response from AI'}), 500
     
-    result = response.json()
-    debug_result = result['choices'][0]['message']['content']
-    
     return jsonify({
-        'debug': debug_result
+        'debug': response_text
     })
 
 @app.route('/api/ai/conversation', methods=['GET'])
@@ -899,95 +846,14 @@ def set_current_file(file_id):
 def debug_env():
     """Debug endpoint to check environment variables (REMOVE AFTER TESTING)"""
     debug_info = {
-        'OPENROUTER_API_KEY_exists': bool(os.getenv('OPENROUTER_API_KEY')),
-        'OPENROUTER_API_KEY_length': len(os.getenv('OPENROUTER_API_KEY', '')),
-        'OPENROUTER_API_KEY_prefix': os.getenv('OPENROUTER_API_KEY', '')[:10] if os.getenv('OPENROUTER_API_KEY') else None,
-        'OPENROUTER_MODEL': os.getenv('OPENROUTER_MODEL'),
+        'GEMINI_API_KEY_exists': bool(os.getenv('GEMINI_API_KEY')),
+        'GEMINI_API_KEY_length': len(os.getenv('GEMINI_API_KEY', '')),
+        'GEMINI_API_KEY_prefix': os.getenv('GEMINI_API_KEY', '')[:10] if os.getenv('GEMINI_API_KEY') else None,
+        'GEMINI_MODEL': GEMINI_MODEL,
         'FLASK_SECRET_KEY_exists': bool(os.getenv('FLASK_SECRET_KEY')),
         'ALL_ENV_KEYS': list(os.environ.keys()),
     }
     return jsonify(debug_info)
-
-@app.route('/debug-test-api')
-def debug_test_api():
-    """Test OpenRouter API directly"""
-    import requests
-    import os
-    
-    api_key = os.environ.get('OPENROUTER_API_KEY')
-    
-    if not api_key:
-        return jsonify({'error': 'No API key found'})
-    
-    # Test 1: Just check if key format is valid
-    key_info = {
-        'key_exists': True,
-        'key_length': len(api_key),
-        'key_prefix': api_key[:10] + '...',
-        'key_format_valid': api_key.startswith('sk-or-v1-')
-    }
-    
-    # Test 2: Try a simple API call to list models
-    try:
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        response = requests.get(
-            "https://openrouter.ai/api/v1/models",
-            headers=headers,
-            timeout=10
-        )
-        
-        api_test = {
-            'status_code': response.status_code,
-            'success': response.status_code == 200,
-            'response_preview': response.text[:200] if response.text else None
-        }
-        
-        if response.status_code == 401:
-            api_test['error'] = 'Unauthorized - Key might be invalid or revoked'
-        elif response.status_code == 403:
-            api_test['error'] = 'Forbidden - Key might not have permissions'
-            
-    except Exception as e:
-        api_test = {
-            'error': str(e),
-            'type': type(e).__name__
-        }
-    
-    # Test 3: Try a simple chat completion
-    try:
-        chat_response = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json={
-                "model": "deepseek/deepseek-chat-v3-0324:free",
-                "messages": [
-                    {"role": "user", "content": "Say 'test successful' if you can hear me"}
-                ],
-                "max_tokens": 10
-            },
-            timeout=10
-        )
-        
-        chat_test = {
-            'status_code': chat_response.status_code,
-            'success': chat_response.status_code == 200,
-            'response': chat_response.json() if chat_response.status_code == 200 else chat_response.text[:200]
-        }
-    except Exception as e:
-        chat_test = {
-            'error': str(e),
-            'type': type(e).__name__
-        }
-    
-    return jsonify({
-        'key_info': key_info,
-        'api_test': api_test,
-        'chat_test': chat_test
-    })
 
 if __name__ == '__main__':
     # Get port from environment (for Render)
@@ -998,5 +864,3 @@ if __name__ == '__main__':
     os.makedirs('temp', exist_ok=True)
     
     app.run(debug=debug, host='0.0.0.0', port=port)
-
-
