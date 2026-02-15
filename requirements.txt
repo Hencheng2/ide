@@ -8,4 +8,5 @@ autopep8
 gunicorn
 requests
 python-dotenv
+google-generativeai
 
