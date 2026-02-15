@@ -855,6 +855,34 @@ def debug_env():
     }
     return jsonify(debug_info)
 
+@app.route('/debug-gemini')
+def debug_gemini():
+    """Debug Gemini configuration"""
+    import google.generativeai as genai
+    
+    debug_info = {
+        'GEMINI_API_KEY_exists': bool(os.getenv('GEMINI_API_KEY')),
+        'GEMINI_API_KEY_length': len(os.getenv('GEMINI_API_KEY', '')),
+        'GEMINI_API_KEY_prefix': os.getenv('GEMINI_API_KEY', '')[:10] if os.getenv('GEMINI_API_KEY') else None,
+        'GEMINI_MODEL': GEMINI_MODEL,
+        'genai_configured': False
+    }
+    
+    # Try to configure and test
+    if os.getenv('GEMINI_API_KEY'):
+        try:
+            genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+            debug_info['genai_configured'] = True
+            
+            # Try a simple test
+            model = genai.GenerativeModel(GEMINI_MODEL)
+            response = model.generate_content("Say 'OK' if working")
+            debug_info['test_response'] = response.text
+        except Exception as e:
+            debug_info['error'] = str(e)
+    
+    return jsonify(debug_info)
+
 if __name__ == '__main__':
     # Get port from environment (for Render)
     port = int(os.getenv('PORT', 5000))
@@ -864,3 +892,4 @@ if __name__ == '__main__':
     os.makedirs('temp', exist_ok=True)
     
     app.run(debug=debug, host='0.0.0.0', port=port)
+
