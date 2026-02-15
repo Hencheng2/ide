@@ -559,6 +559,20 @@ def check_syntax():
         'errors': errors
     })
 
+@app.route('/debug-env')
+def debug_env():
+    """Debug endpoint to check environment variables (REMOVE AFTER TESTING)"""
+    # ONLY use this temporarily for debugging!
+    debug_info = {
+        'OPENROUTER_API_KEY_exists': bool(os.getenv('OPENROUTER_API_KEY')),
+        'OPENROUTER_API_KEY_length': len(os.getenv('OPENROUTER_API_KEY', '')),
+        'OPENROUTER_API_KEY_prefix': os.getenv('OPENROUTER_API_KEY', '')[:10] if os.getenv('OPENROUTER_API_KEY') else None,
+        'OPENROUTER_MODEL': os.getenv('OPENROUTER_MODEL'),
+        'FLASK_SECRET_KEY_exists': bool(os.getenv('FLASK_SECRET_KEY')),
+        'ALL_ENV_KEYS': list(os.environ.keys()),
+    }
+    return jsonify(debug_info)
+
 @app.route('/api/download_all')
 def download_all():
     session_id = session.get('session_id')
@@ -923,3 +937,4 @@ if __name__ == '__main__':
     os.makedirs('temp', exist_ok=True)
     
     app.run(debug=debug, host='0.0.0.0', port=port)
+
