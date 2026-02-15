@@ -1,4 +1,3 @@
-# app.py
 from flask import Flask, render_template, request, jsonify, send_file, session, Response
 from flask_cors import CORS
 import os
@@ -19,20 +18,30 @@ import sqlparse
 import autopep8
 import requests
 import time
-import config  # Import config module
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = '481ab1ecd68770a1a1ebdb3e5fa38cb7'
+
+# Get secret key from environment variable (with fallback for development only)
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
 CORS(app)
 
 # Store user sessions and their file structures
 user_sessions = {}
 ai_conversations = {}  # Store AI chat history per session
 
-# OpenRouter API configuration - Now using values from config
-OPENROUTER_API_KEY = config.OPENROUTER_API_KEY
-OPENROUTER_API_URL = config.OPENROUTER_API_URL
-OPENROUTER_MODEL = config.OPENROUTER_MODEL
+# OpenRouter API configuration - NOW FROM ENVIRONMENT VARIABLES
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODEL = os.getenv('OPENROUTER_MODEL', "deepseek/deepseek-chat-v3-0324:free")
+
+# Check if API key is configured
+if not OPENROUTER_API_KEY:
+    print("⚠️ WARNING: OPENROUTER_API_KEY not found in environment variables!")
+    print("Please set it in your .env file or Render environment variables.")
 
 class IDESession:
     def __init__(self):
@@ -274,10 +283,16 @@ def format_code(content, language):
 
 def call_openrouter_api(messages, stream=False):
     """Call OpenRouter API with the given messages"""
+    
+    # Check if API key is configured
+    if not OPENROUTER_API_KEY:
+        print("ERROR: OpenRouter API key not configured")
+        return None
+    
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:5000",
+        "HTTP-Referer": os.getenv('APP_URL', 'http://localhost:5000'),
         "X-Title": "Dark IDE Pro"
     }
     
@@ -294,7 +309,8 @@ def call_openrouter_api(messages, stream=False):
             OPENROUTER_API_URL,
             headers=headers,
             json=payload,
-            stream=stream
+            stream=stream,
+            timeout=30
         )
         response.raise_for_status()
         return response
@@ -593,6 +609,10 @@ def ai_chat():
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
     
+    # Check if API key is configured
+    if not OPENROUTER_API_KEY:
+        return jsonify({'error': 'OpenRouter API key not configured. Please set OPENROUTER_API_KEY in environment variables.'}), 500
+    
     data = request.json
     message = data.get('message')
     include_context = data.get('include_context', False)
@@ -602,6 +622,7 @@ def ai_chat():
     
     # Get current file context if requested
     context = ""
+    current_file_id = session.get('current_file_id')
     if include_context and current_file_id:
         file_info = user_sessions[session_id].get_file(current_file_id)
         if file_info:
@@ -631,7 +652,7 @@ def ai_chat():
     # Call API
     response = call_openrouter_api(messages)
     if not response:
-        return jsonify({'error': 'Failed to get response from AI'}), 500
+        return jsonify({'error': 'Failed to get response from AI. Please check your API key.'}), 500
     
     result = response.json()
     ai_response = result['choices'][0]['message']['content']
@@ -653,6 +674,10 @@ def ai_chat_stream():
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
     
+    # Check if API key is configured
+    if not OPENROUTER_API_KEY:
+        return jsonify({'error': 'OpenRouter API key not configured. Please set OPENROUTER_API_KEY in environment variables.'}), 500
+    
     data = request.json
     message = data.get('message')
     include_context = data.get('include_context', False)
@@ -662,6 +687,7 @@ def ai_chat_stream():
     
     # Get current file context if requested
     context = ""
+    current_file_id = session.get('current_file_id')
     if include_context and current_file_id:
         file_info = user_sessions[session_id].get_file(current_file_id)
         if file_info:
@@ -728,6 +754,10 @@ def ai_generate_code():
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
     
+    # Check if API key is configured
+    if not OPENROUTER_API_KEY:
+        return jsonify({'error': 'OpenRouter API key not configured. Please set OPENROUTER_API_KEY in environment variables.'}), 500
+    
     data = request.json
     description = data.get('description')
     language = data.get('language', 'python')
@@ -769,6 +799,10 @@ def ai_explain_code():
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
     
+    # Check if API key is configured
+    if not OPENROUTER_API_KEY:
+        return jsonify({'error': 'OpenRouter API key not configured. Please set OPENROUTER_API_KEY in environment variables.'}), 500
+    
     data = request.json
     code = data.get('code')
     language = data.get('language', 'python')
@@ -804,6 +838,10 @@ def ai_debug_code():
     session_id = session.get('session_id')
     if not session_id or session_id not in user_sessions:
         return jsonify({'error': 'Session not found'}), 404
+    
+    # Check if API key is configured
+    if not OPENROUTER_API_KEY:
+        return jsonify({'error': 'OpenRouter API key not configured. Please set OPENROUTER_API_KEY in environment variables.'}), 500
     
     data = request.json
     code = data.get('code')
@@ -861,18 +899,27 @@ def clear_conversation():
     ai_conversations[session_id] = []
     return jsonify({'message': 'Conversation cleared'})
 
-# Global variable to track current file ID (simplified for demo)
-current_file_id = None
-
-@app.before_request
-def track_current_file():
-    """Track current file ID from request if present"""
-    global current_file_id
-    if request.method == 'PUT' and request.path.startswith('/api/file/'):
-        # Extract file_id from URL
-        parts = request.path.split('/')
-        if len(parts) >= 4:
-            current_file_id = parts[3]
+@app.route('/api/set_current_file/<file_id>', methods=['POST'])
+def set_current_file(file_id):
+    """Set the current active file"""
+    session_id = session.get('session_id')
+    if not session_id or session_id not in user_sessions:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    # Verify file exists
+    file_info = user_sessions[session_id].get_file(file_id)
+    if not file_info:
+        return jsonify({'error': 'File not found'}), 404
+    
+    session['current_file_id'] = file_id
+    return jsonify({'success': True, 'file_id': file_id})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Get port from environment (for Render)
+    port = int(os.getenv('PORT', 5000))
+    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    
+    # Create upload directory if needed
+    os.makedirs('temp', exist_ok=True)
+    
+    app.run(debug=debug, host='0.0.0.0', port=port)
