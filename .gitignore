@@ -1,0 +1,62 @@
+# .gitignore
+
+# Environment variables
+.env
+*.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pythonenv.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads
+/uploads
+/static/uploads
+/media
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Config files (if you have any)
+config.py
+config.local.py
+secrets.py
+credentials.json
+*.key
+
+# Flask
+instance/
+.webassets-cache
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
