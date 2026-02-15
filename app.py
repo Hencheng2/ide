@@ -1,3 +1,4 @@
+# app.py
 from flask import Flask, render_template, request, jsonify, send_file, session, Response
 from flask_cors import CORS
 import os
@@ -18,6 +19,7 @@ import sqlparse
 import autopep8
 import requests
 import time
+import config  # Import config module
 
 app = Flask(__name__)
 app.secret_key = '481ab1ecd68770a1a1ebdb3e5fa38cb7'
@@ -27,10 +29,10 @@ CORS(app)
 user_sessions = {}
 ai_conversations = {}  # Store AI chat history per session
 
-# OpenRouter API configuration
-OPENROUTER_API_KEY = "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"
-OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "deepseek/deepseek-chat-v3-0324:free"
+# OpenRouter API configuration - Now using values from config
+OPENROUTER_API_KEY = config.OPENROUTER_API_KEY
+OPENROUTER_API_URL = config.OPENROUTER_API_URL
+OPENROUTER_MODEL = config.OPENROUTER_MODEL
 
 class IDESession:
     def __init__(self):
